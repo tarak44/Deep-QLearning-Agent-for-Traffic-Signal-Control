@@ -1,0 +1,3 @@
+model,reward_mean,reward_std,avg_queue_mean,avg_queue_std,seeds,eval_path
+Double DQN (best_run),0.0,0.0,2.4426,0.12238071743538687,"100,101,102,103,104",model/best_run/eval_full
+Fixed-time baseline,0.0,0.0,3.2198,0.09910882907188442,"100,101,102,103,104",model/baseline_full

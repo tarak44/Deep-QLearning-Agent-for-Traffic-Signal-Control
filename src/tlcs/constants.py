@@ -13,6 +13,7 @@ TESTING_SETTINGS_FILE = Path("testing_settings.yaml")
 MODEL_FILE = Path("trained_model.pt")
 
 DEFAULT_TEST_FOLDER = "test"
+DEFAULT_EVAL_FOLDER = "eval"
 
 # ---------------------------------------------------------------------------
 # SUMO route file configuration

@@ -82,3 +82,4 @@ def generate_routefile(
             print(car_row, file=routes_file)
 
         print("</routes>", file=routes_file)
+        routes_file.flush()

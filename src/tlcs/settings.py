@@ -30,6 +30,11 @@ class TrainingSettings(BaseModel):
 
     # agent
     gamma: Annotated[float, Field(ge=0, le=1)]
+    use_double_dqn: bool = True
+    target_update_interval: PositiveInt = 50
+    grad_clip_norm: PositiveFloat = 10.0
+    seed: int | None = None
+    checkpoint_interval: PositiveInt = 10
 
     # paths
     sumocfg_file: Path

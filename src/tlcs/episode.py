@@ -1,9 +1,17 @@
+import time
 from dataclasses import dataclass
+from typing import Protocol
 
 from numpy.typing import NDArray
 
-from tlcs.agent import Agent
 from tlcs.env import Environment, EnvStats
+
+
+class ActionAgent(Protocol):
+    """Protocol for agents that choose actions from states."""
+
+    def choose_action(self, state: NDArray) -> int:
+        """Return an action index for the given state."""
 
 
 @dataclass
@@ -21,7 +29,11 @@ class Record:
     reward: float
 
 
-def run_episode(env: Environment, agent: Agent, seed: int) -> tuple[list[Record], list[EnvStats]]:
+def run_episode(
+    env: Environment,
+    agent: ActionAgent,
+    seed: int,
+) -> tuple[list[Record], list[EnvStats]]:
     """Runs one episode and returns per-step records and environment statistics.
 
     Args:
@@ -35,6 +47,7 @@ def run_episode(env: Environment, agent: Agent, seed: int) -> tuple[list[Record]
             env_stats is the list of environment statistics for each executed action.
     """
     env.generate_routefile(seed=seed)
+    time.sleep(0.1)  # Ensure route file is written before SUMO starts
 
     previous_total_wait = 0.0
     history: list[Record] = []

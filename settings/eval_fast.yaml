@@ -1,0 +1,9 @@
+gui: false
+max_steps: 1800
+n_cars_generated: 500
+green_duration: 10
+yellow_duration: 4
+turn_chance: 0.25
+episode_seed: 10000
+gamma: 0.75
+sumocfg_file: intersection/sumo_config.sumocfg

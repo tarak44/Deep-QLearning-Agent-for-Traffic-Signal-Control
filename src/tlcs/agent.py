@@ -26,6 +26,10 @@ class Agent:
             model_path: Optional path to load a pre-trained model.
         """
         self.epsilon = epsilon
+        self.use_double_dqn = settings.use_double_dqn
+        self.target_update_interval = settings.target_update_interval
+        self.grad_clip_norm = settings.grad_clip_norm
+        self._replay_steps = 0
         self.model = Model(
             num_layers=settings.num_layers,
             width=settings.width_layers,
@@ -34,6 +38,19 @@ class Agent:
             output_dim=NUM_ACTIONS,
             model_path=model_path,
         )
+        self.target_model = Model(
+            num_layers=settings.num_layers,
+            width=settings.width_layers,
+            learning_rate=settings.learning_rate,
+            input_dim=STATE_SIZE,
+            output_dim=NUM_ACTIONS,
+            model_path=model_path,
+        )
+        self._sync_target_model()
+
+    def _sync_target_model(self) -> None:
+        """Hard update the target network weights."""
+        self.target_model.load_state_dict(self.model.state_dict())
 
     def set_epsilon(self, epsilon: float) -> None:
         """Set the epsilon value for epsilon-greedy exploration.
@@ -82,19 +99,30 @@ class Agent:
 
         # Predict Q-values for current and next states
         q_values = self.model.predict_batch(states)
-        next_q_values = self.model.predict_batch(next_states)
+        next_q_values_target = self.target_model.predict_batch(next_states)
+        next_q_values_online = self.model.predict_batch(next_states)
 
         # Prepare training data
         x = states
         y = q_values.copy()
 
         for i, sample in enumerate(batch):
-            # Q-learning target: r + gamma * max_a' Q(s', a')
-            target = sample.reward + gamma * np.max(next_q_values[i])
+            # Double DQN target: use online argmax, target network for value.
+            if self.use_double_dqn:
+                next_action = int(np.argmax(next_q_values_online[i]))
+                target_q = next_q_values_target[i, next_action]
+            else:
+                target_q = np.max(next_q_values_target[i])
+
+            target = sample.reward + gamma * target_q
             y[i, sample.action] = target
 
         # Train model on the updated Q-values
-        self.model.train_batch(x, y)
+        self.model.train_batch(x, y, grad_clip_norm=self.grad_clip_norm)
+
+        self._replay_steps += 1
+        if self._replay_steps % self.target_update_interval == 0:
+            self._sync_target_model()
 
     def save_model(self, out_path: Path) -> None:
         """Save the underlying model to disk.

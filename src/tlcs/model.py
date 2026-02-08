@@ -94,7 +94,7 @@ class Model:
                 width=width,
             )
 
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.SmoothL1Loss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
     def _predict(self, states: NDArray) -> NDArray:
@@ -135,12 +135,13 @@ class Model:
         """
         return self._predict(states)
 
-    def train_batch(self, states: NDArray, q_sa: NDArray) -> None:
+    def train_batch(self, states: NDArray, q_sa: NDArray, grad_clip_norm: float) -> None:
         """Train the model on a batch of states and target values.
 
         Args:
             states: Input states as array of shape (batch_size, input_dim).
             q_sa: Target values, e.g., Q(s, a), of shape (batch_size, output_dim).
+            grad_clip_norm: Max norm for gradient clipping.
         """
         self.model.train()
 
@@ -151,12 +152,29 @@ class Model:
         predictions = self.model(states_tensor)
         loss = self.loss_fn(predictions, q_sa_tensor)
         loss.backward()
+        nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=grad_clip_norm)
         self.optimizer.step()
 
     def save_model(self, out_path: Path) -> None:
         """Save the model to ``out_path / MODEL_FILE``."""
         out_path.mkdir(parents=True, exist_ok=True)
         torch.save(self.model, out_path / MODEL_FILE)
+
+    def state_dict(self) -> dict[str, Tensor]:
+        """Return the model state dict."""
+        return self.model.state_dict()
+
+    def load_state_dict(self, state_dict: dict[str, Tensor]) -> None:
+        """Load model weights from a state dict."""
+        self.model.load_state_dict(state_dict)
+
+    def optimizer_state_dict(self) -> dict[str, Tensor]:
+        """Return the optimizer state dict."""
+        return self.optimizer.state_dict()
+
+    def load_optimizer_state_dict(self, state_dict: dict[str, Tensor]) -> None:
+        """Load optimizer state from a state dict."""
+        self.optimizer.load_state_dict(state_dict)
 
     def load_model(self, model_file: Path) -> nn.Module:
         """Load a model from disk.

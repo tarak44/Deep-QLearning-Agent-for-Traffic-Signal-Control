@@ -6,6 +6,8 @@ from tlcs.constants import (
     ROUTES_FILE_HEADER,
     STRAIGHT_ROUTES,
     TURN_ROUTES,
+    VEHICLE_TYPES,
+    VEHICLE_TYPE_WEIGHTS,
 )
 
 
@@ -27,7 +29,7 @@ def _map_to_interval(values: NDArray, new_min: int, new_max: int) -> NDArray:
     return np.interp(values, (old_min, old_max), (new_min, new_max))
 
 
-def _get_car_row(route_id: str, car_i: int, step: int) -> str:
+def _get_car_row(route_id: str, car_i: int, step: int, vtype: str) -> str:
     """Build the XML row describing a single vehicle.
 
     Args:
@@ -38,7 +40,7 @@ def _get_car_row(route_id: str, car_i: int, step: int) -> str:
     Returns:
         XML snippet representing the vehicle element.
     """
-    return f'    <vehicle id="{route_id}_{car_i}" type="standard_car" route="{route_id}" depart="{step}" departLane="random" departSpeed="10" />'  # noqa: E501
+    return f'    <vehicle id="{route_id}_{car_i}" type="{vtype}" route="{route_id}" depart="{step}" departLane="random" departSpeed="10" />'  # noqa: E501
 
 
 def generate_routefile(
@@ -46,6 +48,11 @@ def generate_routefile(
     n_cars_generated: int,
     max_steps: int,
     turn_chance: float,
+    demand_profile: str = "flat",
+    peak_start: float = 0.3,
+    peak_end: float = 0.7,
+    peak_share: float = 0.5,
+    n_pedestrians: int = 0,
 ) -> None:
     """Generate a SUMO route file for one simulation episode.
 
@@ -60,24 +67,101 @@ def generate_routefile(
     """
     rng = np.random.default_rng(seed)
 
-    # Generate departure timings according to a Weibull distribution
-    timings = np.sort(rng.weibull(2.0, size=n_cars_generated))
+    if demand_profile == "flat":
+        timings = np.sort(rng.weibull(2.0, size=n_cars_generated))
+        generated_steps = _map_to_interval(timings, new_min=0, new_max=max_steps)
+        depart_steps = np.rint(generated_steps).astype(int)
+    elif demand_profile == "peak":
+        peak_count = int(n_cars_generated * peak_share)
+        off_count = n_cars_generated - peak_count
 
-    # Rescale the distribution to the interval [0, max_steps]
-    generated_steps = _map_to_interval(timings, new_min=0, new_max=max_steps)
+        peak_start_step = int(peak_start * max_steps)
+        peak_end_step = int(peak_end * max_steps)
 
-    # Round to integer steps -> effective depart times for each car
-    depart_steps = np.rint(generated_steps).astype(int)
+        peak_timings = np.sort(rng.weibull(2.0, size=peak_count))
+        peak_steps = _map_to_interval(peak_timings, new_min=peak_start_step, new_max=peak_end_step)
+
+        off_timings = rng.weibull(2.0, size=off_count)
+        off_steps = np.zeros(off_count, dtype=float)
+        for i in range(off_count):
+            if rng.random() < 0.5:
+                off_steps[i] = _map_to_interval(np.array([off_timings[i]]), 0, peak_start_step)[0]
+            else:
+                off_steps[i] = _map_to_interval(
+                    np.array([off_timings[i]]),
+                    peak_end_step,
+                    max_steps,
+                )[0]
+
+        depart_steps = np.rint(np.concatenate([peak_steps, off_steps])).astype(int)
+        rng.shuffle(depart_steps)
+    else:
+        msg = f"Unknown demand_profile: {demand_profile}"
+        raise ValueError(msg)
 
     ROUTES_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     with ROUTES_FILE.open("w", encoding="utf-8") as routes_file:
         print(ROUTES_FILE_HEADER, file=routes_file)
 
+        if n_pedestrians > 0:
+            ped_per_flow = max(1, n_pedestrians // 4)
+            period = max(1, int(max_steps / ped_per_flow))
+
+            print(
+                f'    <personFlow id="ped_N" begin="0" end="{max_steps}" period="{period}">',
+                file=routes_file,
+            )
+            print(
+                '        <walk edges="N2TL"/>',
+                file=routes_file,
+            )
+            print(
+                "    </personFlow>",
+                file=routes_file,
+            )
+            print(
+                f'    <personFlow id="ped_S" begin="0" end="{max_steps}" period="{period}">',
+                file=routes_file,
+            )
+            print(
+                '        <walk edges="S2TL"/>',
+                file=routes_file,
+            )
+            print(
+                "    </personFlow>",
+                file=routes_file,
+            )
+            print(
+                f'    <personFlow id="ped_E" begin="0" end="{max_steps}" period="{period}">',
+                file=routes_file,
+            )
+            print(
+                '        <walk edges="E2TL"/>',
+                file=routes_file,
+            )
+            print(
+                "    </personFlow>",
+                file=routes_file,
+            )
+            print(
+                f'    <personFlow id="ped_W" begin="0" end="{max_steps}" period="{period}">',
+                file=routes_file,
+            )
+            print(
+                '        <walk edges="W2TL"/>',
+                file=routes_file,
+            )
+            print(
+                "    </personFlow>",
+                file=routes_file,
+            )
+
         for car_i, step in enumerate(depart_steps):
             routes_selected = TURN_ROUTES if rng.random() < turn_chance else STRAIGHT_ROUTES
             route_id = rng.choice(routes_selected)
-            car_row = _get_car_row(route_id=route_id, car_i=car_i, step=step)
+            vtype = rng.choice(VEHICLE_TYPES, p=VEHICLE_TYPE_WEIGHTS)
+            car_row = _get_car_row(route_id=route_id, car_i=car_i, step=step, vtype=vtype)
 
             print(car_row, file=routes_file)
 

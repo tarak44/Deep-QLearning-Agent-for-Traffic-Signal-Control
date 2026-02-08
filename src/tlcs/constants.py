@@ -25,6 +25,8 @@ ROUTES_FILE = Path("intersection/episode_routes.rou.xml")
 # Header for the generated routes file: vehicle type and all OD routes.
 ROUTES_FILE_HEADER = """<routes>
     <vType accel="1.0" decel="4.5" id="standard_car" length="5.0" minGap="2.5" maxSpeed="25" sigma="0.5" />
+    <vType accel="0.8" decel="4.0" id="bus" length="12.0" minGap="3.0" maxSpeed="20" sigma="0.5" />
+    <vType accel="0.9" decel="4.2" id="truck" length="8.0" minGap="3.0" maxSpeed="22" sigma="0.5" />
 
     <route id="W_N" edges="W2TL TL2N"/>
     <route id="W_E" edges="W2TL TL2E"/>
@@ -42,6 +44,10 @@ ROUTES_FILE_HEADER = """<routes>
 # Straight vs turning routes
 STRAIGHT_ROUTES = ("W_E", "E_W", "N_S", "S_N")
 TURN_ROUTES = ("W_N", "W_S", "N_W", "N_E", "E_N", "E_S", "S_W", "S_E")
+
+# Vehicle type selection probabilities.
+VEHICLE_TYPES = ("standard_car", "bus", "truck")
+VEHICLE_TYPE_WEIGHTS = (0.8, 0.1, 0.1)
 
 # ---------------------------------------------------------------------------
 # Traffic light phases and action mapping
@@ -63,6 +69,22 @@ ACTION_TO_TL_PHASE = {
     1: PHASE_NSL_GREEN,
     2: PHASE_EW_GREEN,
     3: PHASE_EWL_GREEN,
+    4: PHASE_NS_GREEN,
+    5: PHASE_NSL_GREEN,
+    6: PHASE_EW_GREEN,
+    7: PHASE_EWL_GREEN,
+}
+
+# Action -> duration index (maps into green_duration_multipliers).
+ACTION_TO_DURATION_IDX = {
+    0: 0,
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 1,
+    5: 1,
+    6: 1,
+    7: 1,
 }
 
 # Green phase -> corresponding yellow phase.
@@ -74,12 +96,6 @@ TL_GREEN_TO_YELLOW = {
 }
 
 # ---------------------------------------------------------------------------
-# RL state / action space
-# ---------------------------------------------------------------------------
-
-STATE_SIZE = 80  # 8 lane groups * 10 cells
-NUM_ACTIONS = 4  # matches keys in ACTION_TO_TL_PHASE
-
 # ---------------------------------------------------------------------------
 # Lane geometry and discretization
 # ---------------------------------------------------------------------------
@@ -109,6 +125,16 @@ INCOMING_EDGES = ("E2TL", "N2TL", "W2TL", "S2TL")
 
 # Traffic light ID in the net.
 TRAFFIC_LIGHT_ID = "TL"
+
+# ---------------------------------------------------------------------------
+# RL state / action space
+# ---------------------------------------------------------------------------
+
+NUM_LANE_GROUPS = 8
+BASE_STATE_SIZE = NUM_LANE_GROUPS * CELLS_PER_LANE_GROUP
+EXTRA_FEATURES = NUM_LANE_GROUPS * 2  # queue length + avg speed per group
+STATE_SIZE = BASE_STATE_SIZE + EXTRA_FEATURES
+NUM_ACTIONS = 8  # 4 phases * 2 duration choices
 
 # ---------------------------------------------------------------------------
 # Lane grouping

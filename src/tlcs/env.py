@@ -8,10 +8,13 @@ from sumolib import checkBinary
 
 from tlcs.constants import (
     ACTION_TO_TL_PHASE,
+    ACTION_TO_DURATION_IDX,
+    BASE_STATE_SIZE,
     CELLS_PER_LANE_GROUP,
     INCOMING_EDGES,
     LANE_DISTANCE_TO_CELL,
     LANE_ID_TO_GROUP,
+    NUM_LANE_GROUPS,
     ROAD_MAX_LENGTH,
     STATE_SIZE,
     TL_GREEN_TO_YELLOW,
@@ -25,6 +28,7 @@ class EnvStats:
     """Snapshot of environment statistics for a single simulation step."""
 
     queue_length: int
+    max_queue: int
 
 
 class Environment:
@@ -37,6 +41,15 @@ class Environment:
         yellow_duration: int,
         green_duration: int,
         turn_chance: float,
+        demand_profile: str,
+        peak_start: float,
+        peak_end: float,
+        peak_share: float,
+        green_duration_multipliers: list[float],
+        incident_prob: float,
+        incident_duration: int,
+        incident_speed_factor: float,
+        n_pedestrians: int,
         sumocfg_file: Path,
         gui: bool,
     ) -> None:
@@ -56,10 +69,20 @@ class Environment:
         self.yellow_duration = yellow_duration
         self.green_duration = green_duration
         self.turn_chance = turn_chance
+        self.demand_profile = demand_profile
+        self.peak_start = peak_start
+        self.peak_end = peak_end
+        self.peak_share = peak_share
+        self.green_duration_multipliers = green_duration_multipliers
+        self.incident_prob = incident_prob
+        self.incident_duration = incident_duration
+        self.incident_speed_factor = incident_speed_factor
+        self.n_pedestrians = n_pedestrians
         self.sumocfg_file = sumocfg_file
         self.gui = gui
 
         self.step = 0
+        self._incident_remaining: dict[str, int] = {}
 
     def build_sumo_cmd(self) -> list[str]:
         """Build the SUMO command line based on configuration settings.
@@ -81,6 +104,8 @@ class Environment:
             "true",
             "--waiting-time-memory",
             str(self.max_steps),
+            "--ignore-route-errors",
+            "true" if self.n_pedestrians > 0 else "false",
         ]
 
     def activate(self) -> None:
@@ -111,6 +136,11 @@ class Environment:
             n_cars_generated=self.n_cars_generated,
             max_steps=self.max_steps,
             turn_chance=self.turn_chance,
+            demand_profile=self.demand_profile,
+            peak_start=self.peak_start,
+            peak_end=self.peak_end,
+            peak_share=self.peak_share,
+            n_pedestrians=self.n_pedestrians,
         )
 
     def _get_lane_cell(self, lane_pos: float) -> int:
@@ -138,13 +168,16 @@ class Environment:
     def get_state(self) -> NDArray:
         """Compute the discrete state representation of all vehicles.
 
-        The state is a binary vector of length `state_size`. Each incoming lane is discretized into
-        cells, grouped by direction and turning type.
+        The state includes a binary occupancy grid (lane groups x cells) plus per-lane-group
+        queue length and average speed features.
 
         Returns:
             A NumPy array of shape (state_size,) with 0/1 occupancy values.
         """
         state = np.zeros(STATE_SIZE, dtype=float)
+        queue_counts = np.zeros(NUM_LANE_GROUPS, dtype=float)
+        speed_sums = np.zeros(NUM_LANE_GROUPS, dtype=float)
+        speed_counts = np.zeros(NUM_LANE_GROUPS, dtype=float)
 
         for car_id in traci.vehicle.getIDList():
             lane_id = traci.vehicle.getLaneID(car_id)
@@ -158,11 +191,26 @@ class Environment:
 
             car_position = lane_group * CELLS_PER_LANE_GROUP + lane_cell
 
-            if car_position < 0 or car_position >= STATE_SIZE:
+            if car_position < 0 or car_position >= BASE_STATE_SIZE:
                 msg = "Out of bounds car position."
                 raise ValueError(msg)
 
             state[car_position] = 1.0
+            speed = float(traci.vehicle.getSpeed(car_id))
+            max_speed = float(traci.lane.getMaxSpeed(lane_id))
+            if max_speed > 0:
+                speed_sums[lane_group] += speed / max_speed
+                speed_counts[lane_group] += 1
+            if speed < 0.1:
+                queue_counts[lane_group] += 1
+
+        queue_offset = BASE_STATE_SIZE
+        speed_offset = BASE_STATE_SIZE + NUM_LANE_GROUPS
+        denom = max(1, self.n_cars_generated)
+        for i in range(NUM_LANE_GROUPS):
+            state[queue_offset + i] = queue_counts[i] / denom
+            if speed_counts[i] > 0:
+                state[speed_offset + i] = speed_sums[i] / speed_counts[i]
 
         return state
 
@@ -215,12 +263,49 @@ class Environment:
         steps_todo = min(duration, self.max_steps - self.step)
 
         for _ in range(steps_todo):
+            self._apply_incidents()
             traci.simulationStep()
             self.step += 1
-            queue_length = self.get_queue_length()
-            stats.append(EnvStats(queue_length=queue_length))
+            queue_length, max_queue = self.get_queue_stats()
+            stats.append(EnvStats(queue_length=queue_length, max_queue=max_queue))
 
         return stats
+
+    def _apply_incidents(self) -> None:
+        """Optionally slow random vehicles to simulate incidents."""
+        if self.incident_prob <= 0:
+            return
+
+        # Decrease timers and restore speed when done.
+        finished = []
+        for car_id, remaining in self._incident_remaining.items():
+            remaining -= 1
+            if remaining <= 0:
+                finished.append(car_id)
+            else:
+                self._incident_remaining[car_id] = remaining
+
+        for car_id in finished:
+            try:
+                traci.vehicle.setSpeed(car_id, -1)
+            except traci.TraCIException:
+                pass
+            self._incident_remaining.pop(car_id, None)
+
+        # Possibly introduce a new incident.
+        if np.random.random() < self.incident_prob:
+            vehicles = traci.vehicle.getIDList()
+            if not vehicles:
+                return
+            car_id = str(np.random.choice(vehicles))
+            if car_id in self._incident_remaining:
+                return
+            try:
+                speed = float(traci.vehicle.getSpeed(car_id))
+                traci.vehicle.setSpeed(car_id, speed * self.incident_speed_factor)
+                self._incident_remaining[car_id] = self.incident_duration
+            except traci.TraCIException:
+                pass
 
     def execute(self, action: int) -> list[EnvStats]:
         """Execute an action by changing the traffic light phase.
@@ -235,6 +320,9 @@ class Environment:
             A list of EnvStats collected during the applied phases.
         """
         next_green_phase = ACTION_TO_TL_PHASE[action]
+        duration_idx = ACTION_TO_DURATION_IDX[action]
+        duration_multiplier = self.green_duration_multipliers[duration_idx]
+        green_duration = max(1, int(round(self.green_duration * duration_multiplier)))
         current_green_phase = traci.trafficlight.getPhase(TRAFFIC_LIGHT_ID)
 
         stats: list[EnvStats] = []
@@ -248,19 +336,21 @@ class Environment:
             return stats
 
         self._set_green_phase(next_green_phase)
-        stats_green = self._simulate(self.green_duration)
+        stats_green = self._simulate(green_duration)
         stats.extend(stats_green)
 
         return stats
 
-    def get_queue_length(self) -> int:
-        """Return the number of stopped vehicles on all incoming edges.
+    def get_queue_stats(self) -> tuple[int, int]:
+        """Return total and max stopped vehicles on incoming edges.
 
         Returns:
-            Total number of vehicles with speed 0 on incoming edges.
+            Tuple of (total queue length, max per-edge queue length).
         """
         halt_n = traci.edge.getLastStepHaltingNumber("N2TL")
         halt_s = traci.edge.getLastStepHaltingNumber("S2TL")
         halt_e = traci.edge.getLastStepHaltingNumber("E2TL")
         halt_w = traci.edge.getLastStepHaltingNumber("W2TL")
-        return int(halt_n + halt_s + halt_e + halt_w)
+        total = int(halt_n + halt_s + halt_e + halt_w)
+        max_queue = int(max(halt_n, halt_s, halt_e, halt_w))
+        return total, max_queue

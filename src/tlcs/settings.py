@@ -16,6 +16,14 @@ class TrainingSettings(BaseModel):
     green_duration: PositiveInt
     yellow_duration: PositiveInt
     turn_chance: Annotated[float, Field(ge=0, le=1)]
+    demand_profile: str = "flat"
+    peak_start: Annotated[float, Field(ge=0, le=1)] = 0.3
+    peak_end: Annotated[float, Field(ge=0, le=1)] = 0.7
+    peak_share: Annotated[float, Field(ge=0, le=1)] = 0.5
+    n_pedestrians: NonNegativeInt = 0
+    incident_prob: Annotated[float, Field(ge=0, le=1)] = 0.0
+    incident_duration: PositiveInt = 5
+    incident_speed_factor: Annotated[float, Field(gt=0, le=1)] = 0.3
 
     # model
     num_layers: PositiveInt
@@ -35,6 +43,9 @@ class TrainingSettings(BaseModel):
     grad_clip_norm: PositiveFloat = 10.0
     seed: int | None = None
     checkpoint_interval: PositiveInt = 10
+    queue_penalty_weight: PositiveFloat = 0.1
+    max_queue_penalty_weight: PositiveFloat = 0.2
+    green_duration_multipliers: list[PositiveFloat] = [0.5, 1.0]
 
     # paths
     sumocfg_file: Path
@@ -50,6 +61,20 @@ class TrainingSettings(BaseModel):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def check_peak_bounds(self) -> Self:
+        """Ensure peak demand bounds are valid when enabled."""
+        if self.demand_profile not in {"flat", "peak"}:
+            msg = "demand_profile must be 'flat' or 'peak'"
+            raise ValueError(msg)
+        if self.peak_start >= self.peak_end:
+            msg = "peak_start must be smaller than peak_end"
+            raise ValueError(msg)
+        if len(self.green_duration_multipliers) != 2:
+            msg = "green_duration_multipliers must contain exactly 2 values"
+            raise ValueError(msg)
+        return self
+
 
 class TestingSettings(BaseModel):
     """Configuration options for testing a trained RL agent."""
@@ -62,9 +87,20 @@ class TestingSettings(BaseModel):
     yellow_duration: PositiveInt
     green_duration: PositiveInt
     turn_chance: Annotated[float, Field(ge=0, le=1)]
+    demand_profile: str = "flat"
+    peak_start: Annotated[float, Field(ge=0, le=1)] = 0.3
+    peak_end: Annotated[float, Field(ge=0, le=1)] = 0.7
+    peak_share: Annotated[float, Field(ge=0, le=1)] = 0.5
+    n_pedestrians: NonNegativeInt = 0
 
     # agent
     gamma: Annotated[float, Field(ge=0, le=1)]
+    queue_penalty_weight: PositiveFloat = 0.1
+    max_queue_penalty_weight: PositiveFloat = 0.2
+    green_duration_multipliers: list[PositiveFloat] = [0.5, 1.0]
+    incident_prob: Annotated[float, Field(ge=0, le=1)] = 0.0
+    incident_duration: PositiveInt = 5
+    incident_speed_factor: Annotated[float, Field(gt=0, le=1)] = 0.3
 
     # paths
     sumocfg_file: Path

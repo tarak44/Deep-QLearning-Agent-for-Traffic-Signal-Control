@@ -284,6 +284,15 @@ def training_session(  # noqa: PLR0915
                 yellow_duration=settings.yellow_duration,
                 green_duration=settings.green_duration,
                 turn_chance=settings.turn_chance,
+                demand_profile=settings.demand_profile,
+                peak_start=settings.peak_start,
+                peak_end=settings.peak_end,
+                peak_share=settings.peak_share,
+                green_duration_multipliers=settings.green_duration_multipliers,
+                incident_prob=settings.incident_prob,
+                incident_duration=settings.incident_duration,
+                incident_speed_factor=settings.incident_speed_factor,
+                n_pedestrians=settings.n_pedestrians,
                 gui=settings.gui,
                 sumocfg_file=settings.sumocfg_file,
             )
@@ -292,54 +301,60 @@ def training_session(  # noqa: PLR0915
             if settings.seed is not None:
                 episode_seed = settings.seed + episode
 
-            episode_history, env_stats = run_episode(env=env, agent=agent, seed=episode_seed)
+        episode_history, env_stats = run_episode(
+            env=env,
+            agent=agent,
+            seed=episode_seed,
+            queue_penalty_weight=settings.queue_penalty_weight,
+            max_queue_penalty_weight=settings.max_queue_penalty_weight,
+        )
 
-            add_experience_to_memory(memory=memory, history=episode_history)
+        add_experience_to_memory(memory=memory, history=episode_history)
 
-            for _ in range(settings.training_epochs):
-                agent.replay(
-                    memory=memory,
-                    gamma=settings.gamma,
-                    batch_size=settings.batch_size,
-                )
-
-            training_stats = update_training_stats(
-                episode_history=episode_history,
-                env_stats=env_stats,
-                max_steps=settings.max_steps,
-                training_stats=training_stats,
+        for _ in range(settings.training_epochs):
+            agent.replay(
+                memory=memory,
+                gamma=settings.gamma,
+                batch_size=settings.batch_size,
             )
 
-            last_neg_reward = training_stats["sum_neg_reward"][-1]
-            last_cumulative_wait = training_stats["cumulative_wait"][-1]
-            last_avg_queue_length = training_stats["avg_queue_length"][-1]
+        training_stats = update_training_stats(
+            episode_history=episode_history,
+            env_stats=env_stats,
+            max_steps=settings.max_steps,
+            training_stats=training_stats,
+        )
 
-            logger.info(f"\tEpsilon: {agent.epsilon}")
-            logger.info(f"\tReward: {last_neg_reward}")
-            logger.info(f"\tCumulative wait: {last_cumulative_wait}")
-            logger.info(f"\tAvg queue: {last_avg_queue_length}")
+        last_neg_reward = training_stats["sum_neg_reward"][-1]
+        last_cumulative_wait = training_stats["cumulative_wait"][-1]
+        last_avg_queue_length = training_stats["avg_queue_length"][-1]
 
-            row = {
-                "episode": episode + 1,
-                "epsilon": agent.epsilon,
-                "sum_neg_reward": last_neg_reward,
-                "cumulative_wait": last_cumulative_wait,
-                "avg_queue_length": last_avg_queue_length,
-            }
-            csv_writer.writerow(row)
-            jsonl_file.write(json.dumps(row) + "\n")
-            csv_file.flush()
-            jsonl_file.flush()
+        logger.info(f"\tEpsilon: {agent.epsilon}")
+        logger.info(f"\tReward: {last_neg_reward}")
+        logger.info(f"\tCumulative wait: {last_cumulative_wait}")
+        logger.info(f"\tAvg queue: {last_avg_queue_length}")
 
-            if (episode + 1) % settings.checkpoint_interval == 0:
-                checkpoint_path = save_checkpoint(
-                    out_path=out_path,
-                    episode=episode,
-                    agent=agent,
-                    memory=memory,
-                    training_stats=training_stats,
-                )
-                logger.info(f"\tCheckpoint saved: {checkpoint_path}")
+        row = {
+            "episode": episode + 1,
+            "epsilon": agent.epsilon,
+            "sum_neg_reward": last_neg_reward,
+            "cumulative_wait": last_cumulative_wait,
+            "avg_queue_length": last_avg_queue_length,
+        }
+        csv_writer.writerow(row)
+        jsonl_file.write(json.dumps(row) + "\n")
+        csv_file.flush()
+        jsonl_file.flush()
+
+        if (episode + 1) % settings.checkpoint_interval == 0:
+            checkpoint_path = save_checkpoint(
+                out_path=out_path,
+                episode=episode,
+                agent=agent,
+                memory=memory,
+                training_stats=training_stats,
+            )
+            logger.info(f"\tCheckpoint saved: {checkpoint_path}")
 
     agent.save_model(out_path)
 
@@ -397,6 +412,15 @@ def testing_session(settings_file: Path, model_path: Path, test_name: str) -> No
         yellow_duration=settings.yellow_duration,
         green_duration=settings.green_duration,
         turn_chance=settings.turn_chance,
+        demand_profile=settings.demand_profile,
+        peak_start=settings.peak_start,
+        peak_end=settings.peak_end,
+        peak_share=settings.peak_share,
+        green_duration_multipliers=settings.green_duration_multipliers,
+        incident_prob=settings.incident_prob,
+        incident_duration=settings.incident_duration,
+        incident_speed_factor=settings.incident_speed_factor,
+        n_pedestrians=settings.n_pedestrians,
         gui=settings.gui,
         sumocfg_file=settings.sumocfg_file,
     )
@@ -405,6 +429,8 @@ def testing_session(settings_file: Path, model_path: Path, test_name: str) -> No
         env=env,
         agent=agent,
         seed=settings.episode_seed,
+        queue_penalty_weight=settings.queue_penalty_weight,
+        max_queue_penalty_weight=settings.max_queue_penalty_weight,
     )
 
     testing_stats: TestingStats = {
@@ -470,11 +496,26 @@ def evaluation_session(
             yellow_duration=settings.yellow_duration,
             green_duration=settings.green_duration,
             turn_chance=settings.turn_chance,
+            demand_profile=settings.demand_profile,
+            peak_start=settings.peak_start,
+            peak_end=settings.peak_end,
+            peak_share=settings.peak_share,
+            green_duration_multipliers=settings.green_duration_multipliers,
+            incident_prob=settings.incident_prob,
+            incident_duration=settings.incident_duration,
+            incident_speed_factor=settings.incident_speed_factor,
+            n_pedestrians=settings.n_pedestrians,
             gui=settings.gui,
             sumocfg_file=settings.sumocfg_file,
         )
 
-        episode_history, env_stats = run_episode(env=env, agent=agent, seed=seed)
+        episode_history, env_stats = run_episode(
+            env=env,
+            agent=agent,
+            seed=seed,
+            queue_penalty_weight=settings.queue_penalty_weight,
+            max_queue_penalty_weight=settings.max_queue_penalty_weight,
+        )
 
         total_reward = float(sum(record.reward for record in episode_history))
         avg_queue_length = float(
@@ -546,11 +587,26 @@ def baseline_session(
             yellow_duration=settings.yellow_duration,
             green_duration=settings.green_duration,
             turn_chance=settings.turn_chance,
+            demand_profile=settings.demand_profile,
+            peak_start=settings.peak_start,
+            peak_end=settings.peak_end,
+            peak_share=settings.peak_share,
+            green_duration_multipliers=settings.green_duration_multipliers,
+            incident_prob=settings.incident_prob,
+            incident_duration=settings.incident_duration,
+            incident_speed_factor=settings.incident_speed_factor,
+            n_pedestrians=settings.n_pedestrians,
             gui=settings.gui,
             sumocfg_file=settings.sumocfg_file,
         )
 
-        episode_history, env_stats = run_episode(env=env, agent=agent, seed=seed)
+        episode_history, env_stats = run_episode(
+            env=env,
+            agent=agent,
+            seed=seed,
+            queue_penalty_weight=settings.queue_penalty_weight,
+            max_queue_penalty_weight=settings.max_queue_penalty_weight,
+        )
 
         total_reward = float(sum(record.reward for record in episode_history))
         avg_queue_length = float(

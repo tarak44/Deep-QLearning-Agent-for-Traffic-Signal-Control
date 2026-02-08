@@ -5,7 +5,7 @@
 A PyTorch-based Deep Q-Learning agent that learns to operate a single 4-way intersection in **SUMO**. The repo bundles a configurable training pipeline, a small CLI, and plotting utilities so you can focus on experimenting.
 
 - **Agent**: epsilon-greedy Double DQN with target network, experience replay, and a configurable fully connected network.
-- **Environment**: fixed SUMO intersection; state is 80 binary cells from discretized incoming lanes; 4 traffic-signal actions.
+- **Environment**: fixed SUMO intersection; state is 80 binary cells plus 16 lane-group features (queue + speed); 8 traffic-signal actions (phase + duration).
 - **Outputs**: trained model, copied settings, and plots for rewards, delay, and queue lengths.
 
 ## Prerequisites
@@ -101,8 +101,16 @@ Configs live in `settings/` and are validated at runtime.
 
 - `gui`: run SUMO with (`true`) or without (`false`) the GUI.
 - `total_episodes`, `max_steps`, `n_cars_generated`: episode count, length, and traffic volume.
-- `green_duration`, `yellow_duration`: phase durations in seconds.
+- `green_duration`, `yellow_duration`: base phase durations in seconds.
 - `turn_chance`: probability that a vehicle turns instead of going straight.
+- `demand_profile`: `flat` or `peak` traffic pattern.
+- `peak_start`, `peak_end`: normalized time window for peak demand (0–1).
+- `peak_share`: fraction of vehicles generated during the peak window.
+- `green_duration_multipliers`: two multipliers for short/long green durations.
+- `incident_prob`: probability of introducing a random slowdown per step.
+- `incident_duration`: steps to keep a vehicle slowed.
+- `incident_speed_factor`: speed multiplier during an incident.
+- `n_pedestrians`: number of pedestrian trips per episode (requires pedestrian network).
 - `num_layers`, `width_layers`: hidden layer count and width for the neural network.
 - `batch_size`, `learning_rate`, `training_epochs`: replay batch size, optimizer LR, and training passes per episode.
 - `memory_size_min`, `memory_size_max`: replay buffer warmup and capacity.
@@ -112,12 +120,19 @@ Configs live in `settings/` and are validated at runtime.
 - `grad_clip_norm`: max gradient norm for clipping during training.
 - `seed`: global seed for reproducible training.
 - `checkpoint_interval`: number of episodes between checkpoints.
+- `queue_penalty_weight`: weight for average queue penalty in reward.
+- `max_queue_penalty_weight`: weight for max-queue penalty in reward.
 - `sumocfg_file`: SUMO config path (defaults to `intersection/sumo_config.sumocfg`).
 
 `testing_settings.yaml`
 
 - Mirrors the simulation settings (`gui`, `max_steps`, `n_cars_generated`, `green_duration`, `yellow_duration`, `turn_chance`, `gamma`, `sumocfg_file`) plus:
 - `episode_seed`: deterministic route generation for a reproducible test episode.
+- `demand_profile`, `peak_start`, `peak_end`, `peak_share`: time‑varying demand settings.
+- `green_duration_multipliers`: short/long green duration choices.
+- `incident_prob`, `incident_duration`, `incident_speed_factor`: incident noise settings.
+- `n_pedestrians`: number of pedestrian trips per episode (requires pedestrian network).
+- `queue_penalty_weight`, `max_queue_penalty_weight`: reward shaping weights.
 
 ## What gets saved
 
@@ -157,7 +172,7 @@ Each training run writes to the chosen output training folder:
 - Single 4-way junction; each arm has four incoming lanes over 750 m.
 - Incoming lanes are grouped by movement (left vs. straight/right), creating **8 lane groups**.
 - Each group is discretized into **10 distance buckets** (closer to the light -> higher bucket index) for **80 binary cells** total.
-- State vector: length-80 array with `1` if at least one vehicle occupies a cell, else `0`.
+- State vector: **96 features** = 80 binary occupancy cells + 8 queue-length features + 8 average-speed features.
 
 <p align="center">
   <img src="media/fig_state_model.png" width="520" alt="State representation"/>
@@ -168,21 +183,23 @@ Each training run writes to the chosen output training folder:
 
 ### Actions and signals
 
-Four fixed green phases (yellow inserted automatically on phase changes):
+Four fixed green phases (yellow inserted automatically on phase changes), each with short/long duration:
 
 1. North-South straight/right
 2. North-South left
 3. East-West straight/right
 4. East-West left
 
-`green_duration` and `yellow_duration` control how long each phase lasts.
+`green_duration` is scaled by `green_duration_multipliers` based on the chosen action.
 
 ### Reward
 
-Reward is the **change in cumulative waiting time** on incoming edges:
+Reward is the **change in cumulative waiting time** on incoming edges, with queue penalties:
 
 ```
 reward = previous_total_wait - current_total_wait
+         - queue_penalty_weight * avg_queue
+         - max_queue_penalty_weight * max_queue
 ```
 
 Reducing total wait yields positive reward.
@@ -190,9 +207,13 @@ Reducing total wait yields positive reward.
 ### Traffic generation
 
 - One route file per episode generated on the fly.
-- Departure times follow a Weibull distribution scaled to `[0, max_steps]`.
+- Departure times follow a Weibull distribution scaled to `[0, max_steps]`, with optional
+  peak‑demand windows when `demand_profile: peak`.
 - `turn_chance` controls whether a vehicle draws from turning routes versus straight routes.
+- Vehicles are sampled from multiple types (car, bus, truck) with fixed probabilities.
 - Seeds (episode index for training; `episode_seed` for testing) make runs reproducible.
+- Pedestrian flows can be enabled by setting `n_pedestrians > 0` and using
+  `intersection/sumo_config_ped.sumocfg`.
 
 ### Policy and learning loop
 
@@ -243,6 +264,18 @@ All results use the same 5 evaluation seeds (`100–104`) and the full testing s
 | Fixed-time baseline | 3.22 ± 0.10 | 0.00 ± 0.00 | `model/baseline_full` |
 
 The Double DQN policy reduces average queue length by ~24% versus the fixed-time baseline.
+
+## Pedestrian Scenario (Optional)
+
+Pedestrian-enabled network uses `intersection/sumo_config_ped.sumocfg` and can be activated by setting
+`n_pedestrians > 0` in the settings.
+
+Quick smoke test results (example run):
+- Training output: `model/run-ped-long`
+- Test output: `model/run-ped-long/test`
+- Average queue: **67.79**
+- Last queue: **115**
+- Average reward: **-352.89**
 
 ## Conclusion
 

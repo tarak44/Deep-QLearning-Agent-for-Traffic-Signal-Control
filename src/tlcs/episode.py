@@ -33,6 +33,8 @@ def run_episode(
     env: Environment,
     agent: ActionAgent,
     seed: int,
+    queue_penalty_weight: float = 0.0,
+    max_queue_penalty_weight: float = 0.0,
 ) -> tuple[list[Record], list[EnvStats]]:
     """Runs one episode and returns per-step records and environment statistics.
 
@@ -64,6 +66,11 @@ def run_episode(
 
         current_total_wait = env.get_cumulated_waiting_time()
         reward = previous_total_wait - current_total_wait
+        if action_stats:
+            avg_queue = float(sum(s.queue_length for s in action_stats)) / len(action_stats)
+            max_queue = max(s.max_queue for s in action_stats)
+            reward -= queue_penalty_weight * avg_queue
+            reward -= max_queue_penalty_weight * float(max_queue)
         previous_total_wait = current_total_wait
 
         record = Record(state=state, action=action, reward=reward)

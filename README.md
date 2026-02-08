@@ -215,6 +215,19 @@ For each episode:
 - Prefer headless mode (`gui: false`) for training; enable the GUI only when debugging a run or for the testing phase.
 - If an output directory already exists, the CLI asks before overwriting it.
 
+## What’s New (Project Updates)
+
+Key improvements added on top of the previous version:
+
+- **Double DQN + target network** for more stable learning.
+- **Structured logging** (`train.log`) and **per‑episode metrics** (`metrics.csv`, `metrics.jsonl`).
+- **Checkpoints** and **resume training** support.
+- **Evaluation CLI** (`tlcs eval`) with multi‑seed aggregation.
+- **Fixed‑time baseline** (`tlcs baseline`) for fair comparison.
+- **Reproducibility** via explicit global seed in training settings.
+- **CI + tests** (pytest, ruff, mypy) for industry‑grade quality checks.
+- **Results artifacts** (CSV + PNG) and a formal **Results** + **Conclusion** section.
+
 ## Results
 
 All results use the same 5 evaluation seeds (`100–104`) and the full testing settings.

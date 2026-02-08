@@ -64,13 +64,14 @@ class TrainingSettings(BaseModel):
     @model_validator(mode="after")
     def check_peak_bounds(self) -> Self:
         """Ensure peak demand bounds are valid when enabled."""
+        expected_multipliers = 2
         if self.demand_profile not in {"flat", "peak"}:
             msg = "demand_profile must be 'flat' or 'peak'"
             raise ValueError(msg)
         if self.peak_start >= self.peak_end:
             msg = "peak_start must be smaller than peak_end"
             raise ValueError(msg)
-        if len(self.green_duration_multipliers) != 2:
+        if len(self.green_duration_multipliers) != expected_multipliers:
             msg = "green_duration_multipliers must contain exactly 2 values"
             raise ValueError(msg)
         return self

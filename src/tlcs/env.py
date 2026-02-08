@@ -1,3 +1,4 @@
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,8 +8,8 @@ from numpy.typing import NDArray
 from sumolib import checkBinary
 
 from tlcs.constants import (
-    ACTION_TO_TL_PHASE,
     ACTION_TO_DURATION_IDX,
+    ACTION_TO_TL_PHASE,
     BASE_STATE_SIZE,
     CELLS_PER_LANE_GROUP,
     INCOMING_EDGES,
@@ -21,6 +22,8 @@ from tlcs.constants import (
     TRAFFIC_LIGHT_ID,
 )
 from tlcs.generator import generate_routefile
+
+STOP_SPEED_THRESHOLD = 0.1
 
 
 @dataclass
@@ -61,6 +64,15 @@ class Environment:
             yellow_duration: Number of steps to hold a yellow phase.
             green_duration: Number of steps to hold a green phase.
             turn_chance: Probability for each car to turn instead of going straight.
+            demand_profile: Traffic demand profile to use.
+            peak_start: Peak window start (normalized 0-1).
+            peak_end: Peak window end (normalized 0-1).
+            peak_share: Fraction of vehicles generated during the peak window.
+            green_duration_multipliers: Multipliers for short/long green duration.
+            incident_prob: Probability of a random slowdown per step.
+            incident_duration: Duration of an incident in steps.
+            incident_speed_factor: Speed multiplier during incident.
+            n_pedestrians: Number of pedestrians per episode.
             sumocfg_file: Path to the SUMO configuration file.
             gui: Whether to use the SUMO GUI binary.
         """
@@ -83,6 +95,7 @@ class Environment:
 
         self.step = 0
         self._incident_remaining: dict[str, int] = {}
+        self._rng = np.random.default_rng()
 
     def build_sumo_cmd(self) -> list[str]:
         """Build the SUMO command line based on configuration settings.
@@ -201,7 +214,7 @@ class Environment:
             if max_speed > 0:
                 speed_sums[lane_group] += speed / max_speed
                 speed_counts[lane_group] += 1
-            if speed < 0.1:
+            if speed < STOP_SPEED_THRESHOLD:
                 queue_counts[lane_group] += 1
 
         queue_offset = BASE_STATE_SIZE
@@ -278,34 +291,30 @@ class Environment:
 
         # Decrease timers and restore speed when done.
         finished = []
-        for car_id, remaining in self._incident_remaining.items():
-            remaining -= 1
-            if remaining <= 0:
+        for car_id, remaining in list(self._incident_remaining.items()):
+            new_remaining = remaining - 1
+            if new_remaining <= 0:
                 finished.append(car_id)
             else:
-                self._incident_remaining[car_id] = remaining
+                self._incident_remaining[car_id] = new_remaining
 
         for car_id in finished:
-            try:
+            with suppress(traci.TraCIException):
                 traci.vehicle.setSpeed(car_id, -1)
-            except traci.TraCIException:
-                pass
             self._incident_remaining.pop(car_id, None)
 
         # Possibly introduce a new incident.
-        if np.random.random() < self.incident_prob:
+        if self._rng.random() < self.incident_prob:
             vehicles = traci.vehicle.getIDList()
             if not vehicles:
                 return
-            car_id = str(np.random.choice(vehicles))
+            car_id = str(self._rng.choice(vehicles))
             if car_id in self._incident_remaining:
                 return
-            try:
+            with suppress(traci.TraCIException):
                 speed = float(traci.vehicle.getSpeed(car_id))
                 traci.vehicle.setSpeed(car_id, speed * self.incident_speed_factor)
                 self._incident_remaining[car_id] = self.incident_duration
-            except traci.TraCIException:
-                pass
 
     def execute(self, action: int) -> list[EnvStats]:
         """Execute an action by changing the traffic light phase.
@@ -322,7 +331,7 @@ class Environment:
         next_green_phase = ACTION_TO_TL_PHASE[action]
         duration_idx = ACTION_TO_DURATION_IDX[action]
         duration_multiplier = self.green_duration_multipliers[duration_idx]
-        green_duration = max(1, int(round(self.green_duration * duration_multiplier)))
+        green_duration = max(1, round(self.green_duration * duration_multiplier))
         current_green_phase = traci.trafficlight.getPhase(TRAFFIC_LIGHT_ID)
 
         stats: list[EnvStats] = []
@@ -352,5 +361,5 @@ class Environment:
         halt_e = traci.edge.getLastStepHaltingNumber("E2TL")
         halt_w = traci.edge.getLastStepHaltingNumber("W2TL")
         total = int(halt_n + halt_s + halt_e + halt_w)
-        max_queue = int(max(halt_n, halt_s, halt_e, halt_w))
+        max_queue = max(halt_n, halt_s, halt_e, halt_w)
         return total, max_queue

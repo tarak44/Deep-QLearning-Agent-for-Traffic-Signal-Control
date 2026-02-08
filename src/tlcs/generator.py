@@ -6,9 +6,11 @@ from tlcs.constants import (
     ROUTES_FILE_HEADER,
     STRAIGHT_ROUTES,
     TURN_ROUTES,
-    VEHICLE_TYPES,
     VEHICLE_TYPE_WEIGHTS,
+    VEHICLE_TYPES,
 )
+
+OFF_PEAK_SPLIT = 0.5
 
 
 def _map_to_interval(values: NDArray, new_min: int, new_max: int) -> NDArray:
@@ -36,6 +38,7 @@ def _get_car_row(route_id: str, car_i: int, step: int, vtype: str) -> str:
         route_id: Identifier of the route the vehicle will follow.
         car_i: Index of the vehicle in the episode.
         step: Simulation step at which the vehicle departs.
+        vtype: Vehicle type identifier.
 
     Returns:
         XML snippet representing the vehicle element.
@@ -43,7 +46,7 @@ def _get_car_row(route_id: str, car_i: int, step: int, vtype: str) -> str:
     return f'    <vehicle id="{route_id}_{car_i}" type="{vtype}" route="{route_id}" depart="{step}" departLane="random" departSpeed="10" />'  # noqa: E501
 
 
-def generate_routefile(
+def generate_routefile(  # noqa: PLR0913
     seed: int,
     n_cars_generated: int,
     max_steps: int,
@@ -64,6 +67,11 @@ def generate_routefile(
         n_cars_generated: Number of cars to generate in the episode.
         max_steps: Maximum simulation step for car departures.
         turn_chance: Probability to select a turn route rather than a straight route.
+        demand_profile: Traffic demand profile ("flat" or "peak").
+        peak_start: Peak window start (normalized 0-1).
+        peak_end: Peak window end (normalized 0-1).
+        peak_share: Fraction of vehicles generated during the peak window.
+        n_pedestrians: Number of pedestrians to generate.
     """
     rng = np.random.default_rng(seed)
 
@@ -84,7 +92,7 @@ def generate_routefile(
         off_timings = rng.weibull(2.0, size=off_count)
         off_steps = np.zeros(off_count, dtype=float)
         for i in range(off_count):
-            if rng.random() < 0.5:
+            if rng.random() < OFF_PEAK_SPLIT:
                 off_steps[i] = _map_to_interval(np.array([off_timings[i]]), 0, peak_start_step)[0]
             else:
                 off_steps[i] = _map_to_interval(

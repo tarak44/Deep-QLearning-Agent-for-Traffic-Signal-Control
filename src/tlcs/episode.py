@@ -42,6 +42,8 @@ def run_episode(
         env: Environment to interact with.
         agent: Agent used to select actions from states.
         seed: Seed used to generate the route file for this episode.
+        queue_penalty_weight: Weight for average queue penalty in reward.
+        max_queue_penalty_weight: Weight for max-queue penalty in reward.
 
     Returns:
         A tuple (history, env_stats) where:

@@ -228,6 +228,11 @@ Key improvements added on top of the previous version:
 - **CI + tests** (pytest, ruff, mypy) for industry‑grade quality checks.
 - **Results artifacts** (CSV + PNG) and a formal **Results** + **Conclusion** section.
 
+## Contributions
+
+- **Tarak Kolli**: project modernization, Double DQN integration, evaluation/baseline tooling, metrics/logging, experiments, results, and documentation.
+- **Andrea Vidali**: original project, environment setup, and baseline DQN implementation.
+
 ## Results
 
 All results use the same 5 evaluation seeds (`100–104`) and the full testing settings.

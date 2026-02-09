@@ -146,6 +146,7 @@ Each training run writes to the chosen output training folder:
 - `plot_reward.png`, `plot_delay.png`, `plot_queue.png` and matching `*_data.txt` files.
 - Testing outputs are saved within the training folder in a dedicated testing subfolder with reward and queue plots plus data.
 - Evaluation outputs are saved under an `eval/` subfolder with per-seed metrics and an aggregate summary.
+- Recent experiment runs in this repo are stored under `experiments/` (e.g., `experiments/hp_fix_01`, `experiments/hp_sweep_*`, `experiments/baseline_eval_sweep`).
 
 ## Project layout
 
@@ -256,14 +257,14 @@ Key improvements added on top of the previous version:
 
 ## Results
 
-All results use the same 5 evaluation seeds (`100–104`) and the full testing settings.
+Latest results use `settings/eval_sweep.yaml` (time-varying demand + incidents) with seeds `100–102`.
 
 | Model | Avg queue (mean ± std) | Reward (mean ± std) | Eval path |
 | --- | --- | --- | --- |
-| Double DQN (best_run) | **2.44 ± 0.12** | 0.00 ± 0.00 | `model/best_run/eval_full` |
-| Fixed-time baseline | 3.22 ± 0.10 | 0.00 ± 0.00 | `model/baseline_full` |
+| Double DQN (hp_fix_01) | **0.0033 ± 0.0040** | -0.6726 ± 0.8065 | `experiments/hp_fix_01/eval_sweep` |
+| Fixed-time baseline | 0.0167 ± 0.0176 | -1.4000 ± 1.4648 | `experiments/baseline_eval_sweep` |
 
-The Double DQN policy reduces average queue length by ~24% versus the fixed-time baseline.
+The Double DQN policy reduces average queue length versus the fixed-time baseline under `eval_sweep`.
 
 ## Pedestrian Scenario (Optional)
 
@@ -288,5 +289,6 @@ for future work such as multi‑intersection control, richer state representatio
 ## License
 
 MIT - see `LICENSE`.
+
 
 

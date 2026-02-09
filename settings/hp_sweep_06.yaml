@@ -1,0 +1,36 @@
+gui: false
+total_episodes: 40
+max_steps: 1800
+n_cars_generated: 700
+green_duration: 10
+yellow_duration: 4
+turn_chance: 0.25
+demand_profile: peak
+peak_start: 0.25
+peak_end: 0.8
+peak_share: 0.65
+n_pedestrians: 0
+green_duration_multipliers: [0.5, 1.0]
+incident_prob: 0.02
+incident_duration: 10
+incident_speed_factor: 0.3
+
+num_layers: 6
+width_layers: 256
+batch_size: 128
+learning_rate: 0.0006
+training_epochs: 500
+
+memory_size_min: 1500
+memory_size_max: 90000
+
+gamma: 0.85
+use_double_dqn: true
+target_update_interval: 50
+grad_clip_norm: 7.5
+seed: 42
+checkpoint_interval: 10
+queue_penalty_weight: 0.1
+max_queue_penalty_weight: 0.2
+
+sumocfg_file: intersection/sumo_config.sumocfg

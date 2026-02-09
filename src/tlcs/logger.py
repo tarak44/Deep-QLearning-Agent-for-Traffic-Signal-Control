@@ -50,9 +50,13 @@ def add_file_handler(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     for handler in root_logger.handlers:
-        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(log_path):
+        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(
+            log_path
+        ):
             return
 
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
     root_logger.addHandler(file_handler)

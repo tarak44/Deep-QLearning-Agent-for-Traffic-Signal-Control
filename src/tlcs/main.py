@@ -103,7 +103,9 @@ def update_training_stats(
         The updated training statistics.
     """
     # accumulate only negative rewards for clearer trend
-    sum_neg_reward = sum(record.reward for record in episode_history if record.reward < 0)
+    sum_neg_reward = sum(
+        record.reward for record in episode_history if record.reward < 0
+    )
     training_stats["sum_neg_reward"].append(sum_neg_reward)
 
     sum_queue_length = sum(stats.queue_length for stats in env_stats)
@@ -225,7 +227,9 @@ def training_session(  # noqa: PLR0915
     out_path.mkdir(parents=True, exist_ok=True)
     add_file_handler(out_path / "train.log")
 
-    memory = Memory(size_max=settings.memory_size_max, size_min=settings.memory_size_min)
+    memory = Memory(
+        size_max=settings.memory_size_max, size_min=settings.memory_size_min
+    )
     agent = Agent(settings=settings)
 
     timestamp_start = datetime.now()
@@ -251,14 +255,17 @@ def training_session(  # noqa: PLR0915
     csv_mode = "a" if start_episode > 0 and metrics_csv_path.exists() else "w"
     jsonl_mode = "a" if start_episode > 0 and metrics_jsonl_path.exists() else "w"
 
-    with metrics_csv_path.open(
-        csv_mode,
-        encoding="utf-8",
-        newline="",
-    ) as csv_file, metrics_jsonl_path.open(
-        jsonl_mode,
-        encoding="utf-8",
-    ) as jsonl_file:
+    with (
+        metrics_csv_path.open(
+            csv_mode,
+            encoding="utf-8",
+            newline="",
+        ) as csv_file,
+        metrics_jsonl_path.open(
+            jsonl_mode,
+            encoding="utf-8",
+        ) as jsonl_file,
+    ):
         csv_writer = csv.DictWriter(
             csv_file,
             fieldnames=[
@@ -301,60 +308,60 @@ def training_session(  # noqa: PLR0915
             if settings.seed is not None:
                 episode_seed = settings.seed + episode
 
-        episode_history, env_stats = run_episode(
-            env=env,
-            agent=agent,
-            seed=episode_seed,
-            queue_penalty_weight=settings.queue_penalty_weight,
-            max_queue_penalty_weight=settings.max_queue_penalty_weight,
-        )
-
-        add_experience_to_memory(memory=memory, history=episode_history)
-
-        for _ in range(settings.training_epochs):
-            agent.replay(
-                memory=memory,
-                gamma=settings.gamma,
-                batch_size=settings.batch_size,
+            episode_history, env_stats = run_episode(
+                env=env,
+                agent=agent,
+                seed=episode_seed,
+                queue_penalty_weight=settings.queue_penalty_weight,
+                max_queue_penalty_weight=settings.max_queue_penalty_weight,
             )
 
-        training_stats = update_training_stats(
-            episode_history=episode_history,
-            env_stats=env_stats,
-            max_steps=settings.max_steps,
-            training_stats=training_stats,
-        )
+            add_experience_to_memory(memory=memory, history=episode_history)
 
-        last_neg_reward = training_stats["sum_neg_reward"][-1]
-        last_cumulative_wait = training_stats["cumulative_wait"][-1]
-        last_avg_queue_length = training_stats["avg_queue_length"][-1]
+            for _ in range(settings.training_epochs):
+                agent.replay(
+                    memory=memory,
+                    gamma=settings.gamma,
+                    batch_size=settings.batch_size,
+                )
 
-        logger.info(f"\tEpsilon: {agent.epsilon}")
-        logger.info(f"\tReward: {last_neg_reward}")
-        logger.info(f"\tCumulative wait: {last_cumulative_wait}")
-        logger.info(f"\tAvg queue: {last_avg_queue_length}")
-
-        row = {
-            "episode": episode + 1,
-            "epsilon": agent.epsilon,
-            "sum_neg_reward": last_neg_reward,
-            "cumulative_wait": last_cumulative_wait,
-            "avg_queue_length": last_avg_queue_length,
-        }
-        csv_writer.writerow(row)
-        jsonl_file.write(json.dumps(row) + "\n")
-        csv_file.flush()
-        jsonl_file.flush()
-
-        if (episode + 1) % settings.checkpoint_interval == 0:
-            checkpoint_path = save_checkpoint(
-                out_path=out_path,
-                episode=episode,
-                agent=agent,
-                memory=memory,
+            training_stats = update_training_stats(
+                episode_history=episode_history,
+                env_stats=env_stats,
+                max_steps=settings.max_steps,
                 training_stats=training_stats,
             )
-            logger.info(f"\tCheckpoint saved: {checkpoint_path}")
+
+            last_neg_reward = training_stats["sum_neg_reward"][-1]
+            last_cumulative_wait = training_stats["cumulative_wait"][-1]
+            last_avg_queue_length = training_stats["avg_queue_length"][-1]
+
+            logger.info(f"\tEpsilon: {agent.epsilon}")
+            logger.info(f"\tReward: {last_neg_reward}")
+            logger.info(f"\tCumulative wait: {last_cumulative_wait}")
+            logger.info(f"\tAvg queue: {last_avg_queue_length}")
+
+            row = {
+                "episode": episode + 1,
+                "epsilon": agent.epsilon,
+                "sum_neg_reward": last_neg_reward,
+                "cumulative_wait": last_cumulative_wait,
+                "avg_queue_length": last_avg_queue_length,
+            }
+            csv_writer.writerow(row)
+            jsonl_file.write(json.dumps(row) + "\n")
+            csv_file.flush()
+            jsonl_file.flush()
+
+            if (episode + 1) % settings.checkpoint_interval == 0:
+                checkpoint_path = save_checkpoint(
+                    out_path=out_path,
+                    episode=episode,
+                    agent=agent,
+                    memory=memory,
+                    training_stats=training_stats,
+                )
+                logger.info(f"\tCheckpoint saved: {checkpoint_path}")
 
     agent.save_model(out_path)
 
@@ -519,7 +526,9 @@ def evaluation_session(
 
         total_reward = float(sum(record.reward for record in episode_history))
         avg_queue_length = float(
-            round(sum(stats.queue_length for stats in env_stats) / settings.max_steps, 3)
+            round(
+                sum(stats.queue_length for stats in env_stats) / settings.max_steps, 3
+            )
         )
 
         rows.append(
@@ -530,7 +539,9 @@ def evaluation_session(
             }
         )
 
-        logger.info(f"Eval seed {seed}: reward={total_reward}, avg_queue={avg_queue_length}")
+        logger.info(
+            f"Eval seed {seed}: reward={total_reward}, avg_queue={avg_queue_length}"
+        )
 
     rewards = [row["total_reward"] for row in rows]
     queues = [row["avg_queue_length"] for row in rows]
@@ -543,8 +554,12 @@ def evaluation_session(
         "avg_queue_std": float(statistics.pstdev(queues)),
     }
 
-    with (eval_path / "eval_metrics.csv").open("w", encoding="utf-8", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=["seed", "total_reward", "avg_queue_length"])
+    with (eval_path / "eval_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as csv_file:
+        writer = csv.DictWriter(
+            csv_file, fieldnames=["seed", "total_reward", "avg_queue_length"]
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -610,7 +625,9 @@ def baseline_session(
 
         total_reward = float(sum(record.reward for record in episode_history))
         avg_queue_length = float(
-            round(sum(stats.queue_length for stats in env_stats) / settings.max_steps, 3)
+            round(
+                sum(stats.queue_length for stats in env_stats) / settings.max_steps, 3
+            )
         )
 
         rows.append(
@@ -621,7 +638,9 @@ def baseline_session(
             }
         )
 
-        logger.info(f"Baseline seed {seed}: reward={total_reward}, avg_queue={avg_queue_length}")
+        logger.info(
+            f"Baseline seed {seed}: reward={total_reward}, avg_queue={avg_queue_length}"
+        )
 
     rewards = [row["total_reward"] for row in rows]
     queues = [row["avg_queue_length"] for row in rows]
@@ -634,8 +653,12 @@ def baseline_session(
         "avg_queue_std": float(statistics.pstdev(queues)),
     }
 
-    with (eval_path / "eval_metrics.csv").open("w", encoding="utf-8", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=["seed", "total_reward", "avg_queue_length"])
+    with (eval_path / "eval_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as csv_file:
+        writer = csv.DictWriter(
+            csv_file, fieldnames=["seed", "total_reward", "avg_queue_length"]
+        )
         writer.writeheader()
         writer.writerows(rows)
 

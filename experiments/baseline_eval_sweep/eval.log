@@ -1,0 +1,4 @@
+2026-02-09 14:41:02,135 INFO Baseline seed 100: reward=0.0, avg_queue=0.0
+2026-02-09 14:41:03,361 INFO Baseline seed 101: reward=-0.7777777777777759, avg_queue=0.009
+2026-02-09 14:41:04,612 INFO Baseline seed 102: reward=-3.422222222222213, avg_queue=0.041
+2026-02-09 14:41:04,622 INFO Baseline results saved at: model\baseline_eval_sweep

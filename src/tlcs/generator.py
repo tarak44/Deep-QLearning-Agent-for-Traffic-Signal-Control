@@ -87,13 +87,17 @@ def generate_routefile(  # noqa: PLR0913
         peak_end_step = int(peak_end * max_steps)
 
         peak_timings = np.sort(rng.weibull(2.0, size=peak_count))
-        peak_steps = _map_to_interval(peak_timings, new_min=peak_start_step, new_max=peak_end_step)
+        peak_steps = _map_to_interval(
+            peak_timings, new_min=peak_start_step, new_max=peak_end_step
+        )
 
         off_timings = rng.weibull(2.0, size=off_count)
         off_steps = np.zeros(off_count, dtype=float)
         for i in range(off_count):
             if rng.random() < OFF_PEAK_SPLIT:
-                off_steps[i] = _map_to_interval(np.array([off_timings[i]]), 0, peak_start_step)[0]
+                off_steps[i] = _map_to_interval(
+                    np.array([off_timings[i]]), 0, peak_start_step
+                )[0]
             else:
                 off_steps[i] = _map_to_interval(
                     np.array([off_timings[i]]),
@@ -166,10 +170,14 @@ def generate_routefile(  # noqa: PLR0913
             )
 
         for car_i, step in enumerate(depart_steps):
-            routes_selected = TURN_ROUTES if rng.random() < turn_chance else STRAIGHT_ROUTES
+            routes_selected = (
+                TURN_ROUTES if rng.random() < turn_chance else STRAIGHT_ROUTES
+            )
             route_id = rng.choice(routes_selected)
             vtype = rng.choice(VEHICLE_TYPES, p=VEHICLE_TYPE_WEIGHTS)
-            car_row = _get_car_row(route_id=route_id, car_i=car_i, step=step, vtype=vtype)
+            car_row = _get_car_row(
+                route_id=route_id, car_i=car_i, step=step, vtype=vtype
+            )
 
             print(car_row, file=routes_file)
 

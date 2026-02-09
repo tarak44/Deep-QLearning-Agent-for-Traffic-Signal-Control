@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from tlcs.settings import TrainingSettings
@@ -21,7 +23,7 @@ def test_training_settings_rejects_invalid_memory_bounds() -> None:
             memory_size_min=10,
             memory_size_max=10,
             gamma=0.9,
-            sumocfg_file="intersection/sumo_config.sumocfg",
+            sumocfg_file=Path("intersection/sumo_config.sumocfg"),
             use_double_dqn=True,
             target_update_interval=5,
             grad_clip_norm=1.0,

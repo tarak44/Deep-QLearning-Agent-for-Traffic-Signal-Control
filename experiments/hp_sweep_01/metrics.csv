@@ -1,0 +1,2 @@
+episode,epsilon,sum_neg_reward,cumulative_wait,avg_queue_length
+40,0.03,0,0,0.0

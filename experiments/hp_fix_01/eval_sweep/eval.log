@@ -1,0 +1,6 @@
+2026-02-09 14:50:28,156 INFO Loading trained model for the Agent from experiments\hp_fix_01\trained_model.pt
+2026-02-09 14:50:29,265 INFO Loading trained model for the Agent from experiments\hp_fix_01\trained_model.pt
+2026-02-09 14:50:30,614 INFO Eval seed 100: reward=0.0, avg_queue=0.0
+2026-02-09 14:50:32,011 INFO Eval seed 101: reward=-0.2111111111111111, avg_queue=0.001
+2026-02-09 14:50:33,380 INFO Eval seed 102: reward=-1.8066666666666666, avg_queue=0.009
+2026-02-09 14:50:33,389 INFO Evaluation results saved at: experiments\hp_fix_01\eval_sweep

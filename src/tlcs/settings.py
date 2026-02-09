@@ -2,7 +2,14 @@ from pathlib import Path
 from typing import Annotated, Any, Self
 
 import yaml
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    NonNegativeInt,
+    PositiveFloat,
+    PositiveInt,
+    model_validator,
+)
 
 
 class TrainingSettings(BaseModel):

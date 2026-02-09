@@ -11,7 +11,12 @@ from tlcs.constants import (
     TESTING_SETTINGS_FILE,
     TRAINING_SETTINGS_FILE,
 )
-from tlcs.main import baseline_session, evaluation_session, testing_session, training_session
+from tlcs.main import (
+    baseline_session,
+    evaluation_session,
+    testing_session,
+    training_session,
+)
 
 app = typer.Typer(
     help="Train and run TLCS.",
@@ -108,7 +113,9 @@ def check_eval_path(model_path: Path, eval_name: str) -> None:
         )
 
 
-@app.command(name="train", help="Train a new TLCS model using the specified settings file.")
+@app.command(
+    name="train", help="Train a new TLCS model using the specified settings file."
+)
 def cmd_train(
     settings_file: Annotated[
         Path,
@@ -116,7 +123,8 @@ def cmd_train(
             exists=True,
             help="Path to the YAML file containing training parameters.",
         ),
-    ] = DEFAULT_SETTINGS_PATH / TRAINING_SETTINGS_FILE,
+    ] = DEFAULT_SETTINGS_PATH
+    / TRAINING_SETTINGS_FILE,
     out_path: Annotated[
         Path,
         typer.Option(
@@ -166,7 +174,8 @@ def cmd_test(
             exists=True,
             help="Path to the YAML file containing testing parameters.",
         ),
-    ] = DEFAULT_SETTINGS_PATH / TESTING_SETTINGS_FILE,
+    ] = DEFAULT_SETTINGS_PATH
+    / TESTING_SETTINGS_FILE,
     model_path: Annotated[
         Path,
         typer.Option(
@@ -189,7 +198,9 @@ def cmd_test(
         test_name: Name of the test folder created under the model directory.
     """
     check_testing_path(model_path=model_path, test_name=test_name)
-    testing_session(settings_file=settings_file, model_path=model_path, test_name=test_name)
+    testing_session(
+        settings_file=settings_file, model_path=model_path, test_name=test_name
+    )
 
 
 @app.command(name="eval", help="Evaluate a trained TLCS model across multiple seeds.")
@@ -200,7 +211,8 @@ def cmd_eval(
             exists=True,
             help="Path to the YAML file containing testing parameters.",
         ),
-    ] = DEFAULT_SETTINGS_PATH / TESTING_SETTINGS_FILE,
+    ] = DEFAULT_SETTINGS_PATH
+    / TESTING_SETTINGS_FILE,
     model_path: Annotated[
         Path,
         typer.Option(
@@ -231,7 +243,9 @@ def cmd_eval(
     )
 
 
-@app.command(name="baseline", help="Evaluate a fixed-time baseline across multiple seeds.")
+@app.command(
+    name="baseline", help="Evaluate a fixed-time baseline across multiple seeds."
+)
 def cmd_baseline(
     settings_file: Annotated[
         Path,
@@ -239,7 +253,8 @@ def cmd_baseline(
             exists=True,
             help="Path to the YAML file containing testing parameters.",
         ),
-    ] = DEFAULT_SETTINGS_PATH / TESTING_SETTINGS_FILE,
+    ] = DEFAULT_SETTINGS_PATH
+    / TESTING_SETTINGS_FILE,
     eval_name: Annotated[
         str,
         typer.Option(

@@ -135,7 +135,9 @@ class Model:
         """
         return self._predict(states)
 
-    def train_batch(self, states: NDArray, q_sa: NDArray, grad_clip_norm: float) -> None:
+    def train_batch(
+        self, states: NDArray, q_sa: NDArray, grad_clip_norm: float
+    ) -> None:
         """Train the model on a batch of states and target values.
 
         Args:
